@@ -1,0 +1,57 @@
+ALTER PROCEDURE "DBA"."sp_sms_update"
+    ( 
+    IN @To CHAR(15), 
+    IN @sid LONG VARCHAR, 
+    IN @ErrorCode CHAR(15), 
+    IN @status CHAR(15), 
+    IN @message CHAR(100) )
+
+/*
+Uses web service 'ws_sms_update' to receive and process http callbacks
+from Twilio to update the status of sent sms messages in the tables
+sys_sms, sys_sms_status
+
+This feature can be tested by directly call this set of procedures, or
+by placing the file \\tsclient\D\Tools\Web Service\ws_sms_update 
+into the db server directory C:\inetpub\wwwroot
+and accessing it in a browser via http://localhost/index.php
+*/
+
+BEGIN
+    DECLARE @source CHAR(10) = 'callback';
+    
+    // prep data
+    SET @to = right(@to, 10);
+
+    // set error description, which is not included in Twilio callback
+    IF @ErrorCode = '30003' THEN
+        SET @message = 'Unreachable destination handset.'
+    ELSEIF @ErrorCode = '30004' THEN
+        SET @message = 'Message blocked.'
+    ELSEIF @ErrorCode = '30005' THEN
+        SET @message = 'The destination number you are trying to reach is unknown and may no longer exist.'
+    ELSEIF @ErrorCode = '30006' THEN
+        SET @message = 'Landline or unreachable carrier.'
+    ELSEIF @ErrorCode = '30007' THEN
+        SET @message = 'Carrier violation.'
+    ELSEIF @ErrorCode = '30008' THEN
+        SET @message = 'Message Delivery - Unknown error'
+    ELSEIF @ErrorCode = '30010' THEN
+        SET @message = 'Message price exceeds max price.'
+    ELSEIF @message = @status THEN 
+        SET @message = NULL
+    ENDIF;
+
+    // process
+    CALL sp_sms_update_sms_status(@source, @To, @sid, @status, @ErrorCode, @message);
+    CALL sp_sms_update_sms(@source, @sid, @status, @ErrorCode, @message);
+
+    // delete session, prevent error - "database server connection limit exceeded'
+    CALL sa_set_http_option( 'SessionID', null );
+    COMMIT;
+
+    // set statuss code - success 
+    CALL dbo.sa_set_http_header( 'Content-Type', 'text/html' );
+    CALL dbo.sa_set_http_header( 'Status', '200' );
+    SELECT '<H1>Status 200 - Ok</H1>';
+END
