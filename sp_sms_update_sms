@@ -1,0 +1,42 @@
+ALTER PROCEDURE "DBA"."sp_sms_update_sms"(
+    IN @source CHAR(10), 
+    IN @sid CHAR(50), 
+    IN @status CHAR(15), 
+    IN @err_code CHAR(10), 
+    IN @err_msg CHAR(100) 
+    )
+
+BEGIN
+    DECLARE @row_cnt INT;
+    DECLARE @msg CHAR(110);
+    DECLARE @stamp DATETIME = now();
+
+    // config msg
+    IF @err_code IS NULL THEN 
+        SET @msg = NULL;  
+    ELSE
+        SET @err_msg = trim(@err_msg);
+        IF (@err_msg IS NULL) OR (@err_msg = '') THEN
+            SET @msg = @err_code;
+        ELSE
+            SET @msg = @err_msg + ' (' + @err_code + ')';
+        ENDIF;
+    ENDIF;
+
+    // check for sms with @sid
+    SELECT count(*)
+        INTO @row_cnt
+        FROM sys_sms
+        WHERE sms_api_sid = @sid;
+
+    IF @row_cnt = 1 THEN
+        // update sms
+        UPDATE sys_sms
+            SET sms_source = @source,
+                sms_status = @status,
+                sms_error = @msg, 
+                m_s_dt_ch = @stamp
+            WHERE sys_sms.sms_api_sid = @sid;
+        COMMIT;
+    ENDIF;
+END
