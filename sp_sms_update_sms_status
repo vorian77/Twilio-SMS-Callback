@@ -1,0 +1,70 @@
+ALTER PROCEDURE "DBA"."sp_sms_update_sms_status"(
+    IN @source CHAR(10), 
+    IN @ph_nbr CHAR(15),
+    IN @sid CHAR(50), 
+    IN @status CHAR(15), 
+    IN @err_code CHAR(10), 
+    IN @err_msg CHAR(100) 
+    )
+
+BEGIN
+    DECLARE @status_unknown CHAR(10) = 'Unknown';
+    DECLARE @ph_status CHAR(10);
+    DECLARE @ph_status_order INT;
+    DECLARE @stamp DATETIME = now();
+
+    // convert string null to database null
+    IF lower(@sid) = 'null' THEN SET @sid = NULL ENDIF;    
+    IF lower(@status) = 'null' THEN SET @status = NULL ENDIF;    
+    IF lower(@err_code) = 'null' THEN SET @err_code = NULL ENDIF;    
+    IF lower(@err_msg) = 'null' THEN SET @err_msg = NULL ENDIF;    
+    
+    // check request error
+    IF @err_code IS NOT NULL AND @status IS NULL THEN SET @status = 'Failed' ENDIF;
+
+    // set phone number status and status order
+    IF lower(@status) = 'accepted' THEN
+        SET @ph_status = @status_unknown;
+        SET @ph_status_order = 1;
+    ELSEIF lower(@status) = 'queued' THEN
+        SET @ph_status = @status_unknown;
+        SET @ph_status_order = 2;
+    ELSEIF lower(@status) = 'sent' THEN
+        SET @ph_status = @status_unknown;
+        SET @ph_status_order = 3;
+    ELSEIF lower(@status) = 'failed' THEN
+        SET @ph_status = 'Invalid';
+        SET @ph_status_order = 4;
+    ELSEIF lower(@status) = 'delivered' THEN
+        SET @ph_status = 'Valid';
+        SET @ph_status_order = 5;
+    ELSEIF lower(@status) = 'undelivered' THEN
+        SET @ph_status = 'Invalid';
+        SET @ph_status_order = 5;
+    ELSE
+        SET @ph_status = @status_unknown;
+        SET @ph_status_order = 0;
+    ENDIF;
+
+    // check for message error - message greater than 1600 characters
+    IF @err_code = '21617' THEN 
+        SET @ph_status = @status_unknown;
+        SET @status = 'content_error';
+    ENDIF;
+    
+    // check for message error - message exceeds maximum segments
+    IF @err_code = '30010' THEN
+        SET @ph_status = @status_unknown;
+        SET @status = 'content_error';
+    ENDIF;
+
+    // insert
+    INSERT INTO sys_sms_status
+        (sss_source, rec_ph_mobile, sss_ph_status, sss_api_status_order,
+        sss_api_sid, sss_api_status, sss_api_err_code, sss_api_err_msg,
+        m_s_dt_cr)
+        VALUES (@source, @ph_nbr, @ph_status, @ph_status_order,
+            @sid, @status, @err_code, @err_msg,
+            @stamp);
+    COMMIT;
+END
