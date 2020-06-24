@@ -1,0 +1,22 @@
+ALTER VIEW "DBA"."v_sys_sms_ph_recent"
+/*
+Provides the most current status (valid or invalid) for each mobile
+phone number used for SMS texting based on the results of SMS
+text requests and post text callback information provided by the
+Twilio messaging API.
+
+Used to minimize SMS texting charges by preventing messages to mobile
+phone numbers that have been determined to be invalid.
+*/
+( /* view_column_name, ... */ )
+AS
+select * 
+from sys_sms_status
+where sys_sms_status.sss_id = 
+    (select max(m1.sss_id) 
+        from sys_sms_status m1
+        where m1.rec_ph_mobile = sys_sms_status.rec_ph_mobile and
+              m1.sss_api_status_order in 
+                (select max(m2.sss_api_status_order)
+                    from sys_sms_status m2
+                    where m2.rec_ph_mobile = sys_sms_status.rec_ph_mobile))
