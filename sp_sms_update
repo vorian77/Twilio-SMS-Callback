@@ -7,7 +7,7 @@ ALTER PROCEDURE "DBA"."sp_sms_update"
     IN @message CHAR(100) )
 
 /*
-Uses web service 'ws_sms_update' to receive and process http callbacks
+Used by web service 'ws_sms_update' to receive and process http callbacks
 from Twilio to update the status of sent sms messages in the tables
 sys_sms, sys_sms_status
 
